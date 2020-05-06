@@ -1,5 +1,5 @@
-[![Travis (.com)](https://img.shields.io/travis/com/<user>/<repo>?logo=travis)](https://travis-ci.com/<user>/<repo>)
-[![npm](https://img.shields.io/npm/v/<package>?label=<package>&logo=npm)](https://www.npmjs.com/package/<package>)
+[![Travis (.com)](https://img.shields.io/travis/com/elviswolcott/vscode-highlight?logo=travis)](https://travis-ci.com/elviswolcott/vscode-highlight)
+[![npm](https://img.shields.io/npm/v/vscode-highlight?label=vscode-highlight&logo=npm)](https://www.npmjs.com/package/vscode-highlight)
 # <package-name>
 
 > tagline
@@ -30,8 +30,5 @@ Travis is configured to run deploys on tags.
 
 ## Initial Setup
 
-1. Edit `README.md` so the badges point to your repository
 1. Edit `.travis.yml` so the repository and npm credentials match your project
     * Encrypting your NPM token requires the Travis CLI
-1. Edit `package.json` so that the package name, author, and repository match your project
-1. Disable `build config validation` in the Travis CI settings for the repository

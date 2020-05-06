@@ -15,12 +15,12 @@ jobs:
       deploy:
         provider: npm
         skip_cleanup: true
-        email: <npm-email>
+        email: elviswolcott@gmail.com
         api_key:
-          secure: <get-from-travis-encrypt>
+          secure: "u2FdcPWcfSPLr0UuZ4SCL9sAFPNda8rkssCVu/uIPJ+0rBnB8S5mXOYn/wKnxXPjCEwadI3rPz8qKSGMlm6kyutEzbJxQ+y28QSVENQxJ+pHrYnn6ujEi0IbdHN0edQ2Cp8kmuDLM+B6Av5rcvEGhs+kwJwNz2+O3d8mb0wynXO34ro0yVcm6EG/8mX3baHZ9XQhguDppSlxg3xirZB4mDDuHeePl3bOEiyRMeNqA78gtm9ukfdg/vuTY5DjJS7YUBS2xSe2SgjEInyE6b7AolAWKMMBP6iol7TtcgWyWp/+ChwOXJ92MT7XCnB3rm/pw5qMcAHx6RbR3zkId9eEnC/gUYMT3Z0wEX8vda7eB60CMJzwgg1pTRBHpvzJuuBne5G5xE/vzEHe4UlcEMBlXLwTGbpuljgS3Bze8d+Mlx3Kr7s1OpM/EfLs4ZUOneh5T3sBXkpJrYyr+VwPlINd8PIqJeASRy4KGRU0wFdUJD11jhSkT24uXAUPTxULd8w+Iv6HHwZweAMybZNBHJOTrniKXpfdNHWCKvtQXuTaG+4msYu+Q71FCFdV/ZQsOL2zTzEXeUPLflytwvtHs0FJ/FNyzUu5ZYTFLyjy91tCgRoMg0YN2sdQ+0PtnVQtbsndliecSQLtr7OuJrvz5v89ZmHTIr1NEMYhRuk4Q8QCFqU="
         on:
           tags: true
-          repo: <username>/<project>
+          repo: elviswolcott/vscode-highlight
           branch: master
 stages:
   - test

@@ -1,7 +1,7 @@
 {
-  "name": "package-name",
+  "name": "vscode-highlight",
   "version": "0.0.0",
-  "description": "<tagline>",
+  "description": "Syntax highlighting powered by VS Code",
   "main": "lib/index.js",
   "scripts": {
     "test": "jest --config jestconfig.json --passWithNoTests",
@@ -21,15 +21,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/<username>/<project>.git"
+    "url": "git+https://github.com/elviswolcott/vscode-highlight.git"
   },
   "keywords": [],
-  "author": "<name>",
+  "author": "Elvis Wolcott",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/<username>/<project>.git"
+    "url": "https://github.com/elviswolcott/vscode-highlight.git"
   },
-  "homepage": "https://github.com/<username>/<project>#readme",
+  "homepage": "https://github.com/elviswolcott/vscode-highlight#readme",
   "devDependencies": {
     "@types/jest": "^25.1.0",
     "@typescript-eslint/eslint-plugin": "^2.16.0",
@@ -41,7 +41,7 @@
     "jest": "^25.1.0",
     "lint-staged": "^10.0.9",
     "prettier": "^2.0.2",
-    "ts-jest": "^25.1.0",
+    "ts-jest": "^25.4.0",
     "typescript": "^3.7.5"
   }
 }
