@@ -1,4 +1,4 @@
-import { readJson, copy } from "../fsPromise";
+import { readJson, copyEntry, dataBlock } from "../data";
 import { resolve as resolvePath, basename, relative } from "path";
 import { info, warn } from "loglevel";
 import { yellow } from "chalk";
@@ -125,7 +125,7 @@ interface LoadedExtension {
 
 const load = async (
   extension: string,
-  data: string
+  dataPath: string
 ): Promise<LoadedExtension> => {
   try {
     // read package.json
@@ -167,7 +167,10 @@ const load = async (
     const grammars = packageJson.grammars;
     await Promise.all(
       grammars.map((grammar) =>
-        copy(resolvePath(extension, grammar.path), "grammars")
+        copyEntry(
+          resolvePath(extension, grammar.path),
+          dataBlock(dataPath, "grammars")
+        )
       )
     );
     const scopesByName = grammars.reduce(
@@ -175,7 +178,7 @@ const load = async (
         // keep as relative paths for redistrobution
         scopes[scope] = relative(
           __dirname,
-          resolvePath(__dirname, "../data", "grammars", basename(path))
+          resolvePath(dataPath, "grammars", basename(path))
         );
         return scopes;
       },
@@ -185,7 +188,12 @@ const load = async (
     );
     const themes = packageJson.themes;
     await Promise.all(
-      themes.map((theme) => copy(resolvePath(extension, theme.path), "themes"))
+      themes.map((theme) =>
+        copyEntry(
+          resolvePath(extension, theme.path),
+          dataBlock(dataPath, "themes")
+        )
+      )
     );
     // log info
     info(success, `${packageJson.name} loaded.`);

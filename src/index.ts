@@ -6,10 +6,17 @@ import {
   INITIAL,
 } from "vscode-textmate";
 import { OnigScanner, OnigString } from "oniguruma";
-import { readFile, readJson } from "./fsPromise";
+import { readFile as fsReadFile } from "fs";
+import { readJson } from "./data";
 import { warn } from "loglevel";
 import { warning } from "log-symbols";
 import { resolve as resolvePath } from "path";
+
+export const readFile = (path: string): Promise<Buffer> => {
+  return new Promise((resolve, reject) => {
+    fsReadFile(path, (error, data) => (error ? reject(error) : resolve(data)));
+  });
+};
 
 // only load once
 const defaultScopes = readJson<{ [scope: string]: string }>(
