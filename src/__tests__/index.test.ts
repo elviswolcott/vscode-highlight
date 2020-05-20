@@ -1,7 +1,5 @@
-import { hello } from "../index";
-
-describe("hello world", () => {
-  it('should return "Hello world."', () => {
-    expect(hello()).toBe("Hello world.");
+describe("vscode-highlight", () => {
+  it('should have tests"', () => {
+    expect(true).toBe(true);
   });
 });
