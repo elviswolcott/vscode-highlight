@@ -9,3 +9,4 @@ jestconfig.json
 .eslintignore
 .eslintrc
 .travis.yml
+is-ci.sh

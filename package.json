@@ -4,9 +4,11 @@
   "description": "Syntax highlighting powered by VS Code",
   "main": "lib/index.js",
   "scripts": {
+    "init": "npm run build && npm run extract",
+    "setup": "./is-ci.sh && npm run init || true ",
     "test": "jest --config jestconfig.json --passWithNoTests",
     "extract": "node lib/extract.js",
-    "build": "tsc",
+    "build": "npm run setup && tsc",
     "lint": "tsc --noEmit && eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix"
   },
