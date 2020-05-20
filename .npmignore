@@ -1,4 +1,7 @@
 src
+extract.js
+extract.d.ts
+vscode
 .vscode
 tsconfig.json
 jestconfig.json
