@@ -47,6 +47,9 @@ class Highlight {
   constructor(tokenized: Line[]) {
     this.tokenized = tokenized;
   }
+  toJSON(): Line[] {
+    return this.tokenized;
+  }
 }
 
 export class Highlighter {
