@@ -178,7 +178,7 @@ const load = async (
       (scopes, { scopeName: scope, path }) => {
         // keep as relative paths for redistrobution
         scopes[scope] = relative(
-          __dirname,
+          dataPath,
           resolvePath(dataPath, "grammars", basename(path))
         );
         return scopes;
@@ -219,7 +219,7 @@ const load = async (
       (themes, { label: name, path }) => {
         // keep as relative paths for redistrobution
         themes[name] = relative(
-          __dirname,
+          dataPath,
           resolvePath(dataPath, "themes", basename(path))
         );
         return themes;
