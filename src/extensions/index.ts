@@ -1,5 +1,5 @@
 import { readJson, copyEntry, dataBlock } from "../data";
-import { resolve as resolvePath, basename, relative } from "path";
+import { resolve as resolvePath, basename, dirname, relative } from "path";
 import { info, warn } from "loglevel";
 import { yellow } from "chalk";
 import { success, error, info as status } from "log-symbols";
@@ -196,12 +196,23 @@ const load = async (
         )
       )
     );
-    // check for included themes
-    const include = await Promise.all(
-      themes.map((theme) => {
-        const content = readJson<{ include?: string }>(
+    // copy included (referenced) themes
+    await Promise.all(
+      themes.map(async (theme) => {
+        const content = await readJson<{ include?: string }>(
           resolvePath(extension, theme.path)
         );
+        if (content.include) {
+          console.log(
+            theme,
+            content.include,
+            resolvePath(extension, dirname(theme.path), content.include)
+          );
+          await copyEntry(
+            resolvePath(extension, dirname(theme.path), content.include),
+            dataBlock(dataPath, "themes")
+          );
+        }
       })
     );
     const themesByName = themes.reduce(
