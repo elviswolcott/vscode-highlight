@@ -35,7 +35,15 @@ const childDirectories = (path: string): Promise<string[]> => {
       ...scopes,
     };
   }, {} as { [scope: string]: string });
+  const allThemes = extensions.reduce((all, { themes }) => {
+    return {
+      ...all,
+      ...themes,
+    };
+  }, {} as { [scope: string]: string });
   await writeManifest(STATIC, "scopes", allScopes);
   info(success, `found ${Object.keys(allScopes).length} scopes.`);
+  await writeManifest(STATIC, "themes", allThemes);
+  info(success, `found ${Object.keys(allThemes).length} themes.`);
   info(status, "done.");
 })();

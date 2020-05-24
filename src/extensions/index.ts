@@ -121,6 +121,7 @@ interface Package {
 
 interface LoadedExtension {
   scopes: { [scope: string]: string };
+  themes: { [scope: string]: string };
 }
 
 const load = async (
@@ -195,6 +196,27 @@ const load = async (
         )
       )
     );
+    // check for included themes
+    const include = await Promise.all(
+      themes.map((theme) => {
+        const content = readJson<{ include?: string }>(
+          resolvePath(extension, theme.path)
+        );
+      })
+    );
+    const themesByName = themes.reduce(
+      (themes, { label: name, path }) => {
+        // keep as relative paths for redistrobution
+        themes[name] = relative(
+          __dirname,
+          resolvePath(dataPath, "themes", basename(path))
+        );
+        return themes;
+      },
+      {} as {
+        [name: string]: string;
+      }
+    );
     // log info
     info(success, `${packageJson.name} loaded.`);
     info(indent(1), status, count(languages.length, "language"));
@@ -210,10 +232,10 @@ const load = async (
       info(indent(2), `+ ${theme.label}`);
     });
 
-    return { scopes: scopesByName };
+    return { scopes: scopesByName, themes: themesByName };
   } catch (e) {
     warn(error, yellow(e));
-    return { scopes: {} };
+    return { scopes: {}, themes: {} };
   }
 };
 
