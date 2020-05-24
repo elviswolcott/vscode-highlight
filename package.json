@@ -38,6 +38,7 @@
     "@types/json5": "0.0.30",
     "@types/node": "^13.13.5",
     "@types/oniguruma": "^7.0.1",
+    "@types/plist": "^3.0.2",
     "@typescript-eslint/eslint-plugin": "^2.16.0",
     "@typescript-eslint/parser": "^2.16.0",
     "eslint": "^6.8.0",
@@ -56,6 +57,7 @@
     "log-symbols": "^4.0.0",
     "loglevel": "^1.6.8",
     "oniguruma": "^7.2.1",
+    "plist": "^3.0.1",
     "vscode-textmate": "^5.1.1"
   }
 }
