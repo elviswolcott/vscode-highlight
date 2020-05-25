@@ -148,12 +148,22 @@ const unpack = (raw: number, mask: number, offset: number): number => {
 const styles = (
   packed: Uint32Array,
   startIndex: number,
-  colors: string[]
+  colors: string[],
+  parentStyles: Style
 ): Style => {
   const raw = findStyle(packed, startIndex);
+  const color = colors[unpack(raw, MC.FOREGROUND_MASK, MC.FOREGROUND_OFFSET)];
+  const background =
+    colors[unpack(raw, MC.BACKGROUND_MASK, MC.BACKGROUND_OFFSET)];
+  const styleColors = {} as Style;
+  if (color !== parentStyles.color) {
+    styleColors.color = color;
+  }
+  if (background !== parentStyles.background) {
+    styleColors.background = background;
+  }
   return {
-    color: colors[unpack(raw, MC.FOREGROUND_MASK, MC.FOREGROUND_OFFSET)],
-    background: colors[unpack(raw, MC.BACKGROUND_MASK, MC.BACKGROUND_OFFSET)],
+    ...styleColors,
     ...unpackFontStyle(unpack(raw, MC.FONT_STYLE_MASK, MC.FONT_STYLE_OFFSET)),
   };
 };
@@ -227,7 +237,7 @@ export class Highlighter {
           return {
             scopes,
             content: line.substring(startIndex, endIndex),
-            style: styles(packed, startIndex, colors),
+            style: styles(packed, startIndex, colors, rootStyles),
           };
         })
       );
