@@ -62,7 +62,6 @@ const defaultLanguages = readJson<Languages>(
 // todo: language => scope conversation
 
 interface Token {
-  scopes: string[];
   content: string;
   style: Style;
 }
@@ -233,9 +232,8 @@ export class Highlighter {
       // response is formated in repeating pairs of a start index followed by style info
       const { tokens: packed, ruleStack } = grammar.tokenizeLine2(line, rules);
       tokenized.push(
-        tokens.map(({ scopes, startIndex, endIndex }) => {
+        tokens.map(({ startIndex, endIndex }) => {
           return {
-            scopes,
             content: line.substring(startIndex, endIndex),
             style: styles(packed, startIndex, colors, rootStyles),
           };
