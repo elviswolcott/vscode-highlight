@@ -247,7 +247,7 @@ export class Highlighter {
       },
       // It looks like VSCode has moved away from this (no built in extensions are using it anymore afaik)
       // It could be implimented if needed by a 3rd party extension
-      getInjections: (scopeName): undefined | string[] => {
+      getInjections: (): undefined | string[] => {
         return undefined;
       },
     });

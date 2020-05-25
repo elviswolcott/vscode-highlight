@@ -5,7 +5,7 @@
 
 // adpated from https://github.com/andrewbranch/gatsby-remark-vscode/blob/bd95106ff71943c6a6a9d7e263aed27d49ac1b1d/lib/vscode/colorThemeData.js
 
-import { basename, extname, dirname, join as joinPath } from "path";
+import { extname, dirname, join as joinPath } from "path";
 import { readFileSync } from "fs";
 import { parse as parseJson } from "json5";
 import { parse as parsePlist } from "plist";
@@ -82,7 +82,6 @@ const loadRawTheme = (
   resultRules = [] as Rule[],
   resultColors = {} as ColorMap
 ): { resultRules: Rule[]; resultColors: ColorMap } => {
-  let name = basename(themeLocation).split(".")[0];
   // load json files using json5
   if (extname(themeLocation) === ".json") {
     const content = readFileSync(themeLocation, "utf8");
@@ -93,7 +92,6 @@ const loadRawTheme = (
       colors: ColorMap | number;
       tokenColors: Rule[] | string;
     };
-    name = contentValue.name || name;
     // load referenced themes
     if (contentValue.include) {
       loadRawTheme(
