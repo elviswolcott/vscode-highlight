@@ -54,9 +54,9 @@ interface LoadedLanguageContribution {
   comments: Comments;
 }
 
-interface LanguageContributionWithGrammars extends LoadedLanguageContribution {
+export interface CompleteLanguageContribution
+  extends LoadedLanguageContribution {
   scope: string;
-  path: string;
 }
 
 const transformLanguageConfiguration = ({
@@ -124,6 +124,8 @@ interface Package {
 interface LoadedExtension {
   scopes: { [scope: string]: string };
   themes: { [scope: string]: string };
+  languages: { [language: string]: LoadedLanguageContribution };
+  languageScopes: { [language: string]: string };
 }
 
 const load = async (
@@ -161,12 +163,11 @@ const load = async (
             : {},
         }))
     );
+    // TODO: embedded languages?
     const languagesById = languages.reduce((all, current) => {
       all[current.id] = current;
       return all;
     }, {} as { [id: string]: LoadedLanguageContribution });
-    // add to languages by id
-    // TODO: embedded languages?
     const grammars = packageJson.grammars;
     await Promise.all(
       grammars.map((grammar) =>
@@ -187,6 +188,15 @@ const load = async (
       },
       {} as {
         [name: string]: string;
+      }
+    );
+    const scopesByLanguage = grammars.reduce(
+      (scopes, { language, scopeName: scope }) => {
+        scopes[language] = scope;
+        return scopes;
+      },
+      {} as {
+        [language: string]: string;
       }
     );
     const themes = packageJson.themes;
@@ -240,10 +250,15 @@ const load = async (
       info(indent(2), `+ ${theme.label}`);
     });
 
-    return { scopes: scopesByName, themes: themesByName };
+    return {
+      scopes: scopesByName,
+      themes: themesByName,
+      languages: languagesById,
+      languageScopes: scopesByLanguage,
+    };
   } catch (e) {
     warn(error, yellow(e));
-    return { scopes: {}, themes: {} };
+    return { scopes: {}, themes: {}, languages: {}, languageScopes: {} };
   }
 };
 

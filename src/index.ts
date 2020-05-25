@@ -12,7 +12,7 @@ import { readJson, RUNTIME, STATIC } from "./data";
 import { warn } from "loglevel";
 import { warning } from "log-symbols";
 import { resolve as resolvePath } from "path";
-import { load } from "./extensions";
+import { load, CompleteLanguageContribution } from "./extensions";
 import { load as loadTheme } from "./vscode/themes";
 
 export const readFile = (path: string): Promise<Buffer> => {
@@ -29,6 +29,10 @@ interface Themes {
   [scope: string]: string;
 }
 
+interface Languages {
+  [languageId: string]: CompleteLanguageContribution;
+}
+
 // only load once
 const defaultScopes = readJson<Scopes>(
   resolvePath(__dirname, "../data/scopes.json")
@@ -37,6 +41,21 @@ const defaultScopes = readJson<Scopes>(
 const defaultThemes = readJson<Themes>(
   resolvePath(__dirname, "../data/themes.json")
 );
+
+// auto expand aliases
+const defaultLanguages = readJson<Languages>(
+  resolvePath(__dirname, "../data/languages.json")
+).then((languages) => {
+  Object.keys(languages).forEach((languageId) => {
+    const language = languages[languageId];
+    if (language.aliases.length > 0) {
+      language.aliases.forEach((alias) => {
+        languages[alias] = language;
+      });
+    }
+  });
+  return languages;
+});
 
 // textmate registry for highlighter
 
@@ -166,6 +185,7 @@ export class Highlighter {
     // start loading defaults
     this.loaded.push(defaultScopes);
     this.loaded.push(defaultThemes);
+    this.loaded.push(defaultLanguages);
 
     this.registry = this.prepareRegistry();
   }
@@ -188,8 +208,10 @@ export class Highlighter {
       background: themeColors["editor.background"],
       color: themeColors["editor.foreground"],
     };
-    // TODO: map from lang to scopename
-    const grammar = await registry.loadGrammar(lang);
+    // find the scope for the language
+    const languages = await defaultLanguages;
+    const language = languages[lang];
+    const grammar = await registry.loadGrammar(language.scope);
     if (grammar === null) {
       return new Highlight([], { color: "#ffffff", background: "#000000" });
     }
