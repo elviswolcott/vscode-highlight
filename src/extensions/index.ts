@@ -84,6 +84,8 @@ interface GrammarContribution {
   scopeName: string;
   // TextMate grammar (relative path)
   path: string;
+  tokenTypes?: { [type: string]: string };
+  embeddedLanguages?: { [language: string]: string };
 }
 
 interface ThemeContribution {
@@ -164,7 +166,7 @@ const load = async (
       return all;
     }, {} as { [id: string]: LoadedLanguageContribution });
     // add to languages by id
-    // TODO: embedded languages
+    // TODO: embedded languages?
     const grammars = packageJson.grammars;
     await Promise.all(
       grammars.map((grammar) =>
@@ -203,11 +205,6 @@ const load = async (
           resolvePath(extension, theme.path)
         );
         if (content.include) {
-          console.log(
-            theme,
-            content.include,
-            resolvePath(extension, dirname(theme.path), content.include)
-          );
           await copyEntry(
             resolvePath(extension, dirname(theme.path), content.include),
             dataBlock(dataPath, "themes")

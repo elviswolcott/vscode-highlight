@@ -41,9 +41,6 @@ const defaultThemes = readJson<Themes>(
 // textmate registry for highlighter
 
 // todo: language => scope conversation
-// todo: injections
-// todo: themes
-// consider using tokenizeLine2 for theming
 
 interface Token {
   scopes: string[];
@@ -248,8 +245,8 @@ export class Highlighter {
         warn(warning, `unable to find grammar for ${scopeName}.`);
         return null;
       },
-      // get additional scopes to inject
-      // makes it possible for a grammar to request being injected into another grammar
+      // It looks like VSCode has moved away from this (no built in extensions are using it anymore afaik)
+      // It could be implimented if needed by a 3rd party extension
       getInjections: (scopeName): undefined | string[] => {
         return undefined;
       },
