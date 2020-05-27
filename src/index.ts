@@ -20,7 +20,7 @@ import {
   CompleteLanguageContribution,
   Comments,
 } from "./extensions";
-import { load as loadTheme } from "./vscode/themes";
+import { load as loadTheme, ThemeData } from "./vscode/themes";
 
 export const readFile = (path: string): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
@@ -67,13 +67,19 @@ interface Token {
   style: Style;
 }
 
-interface Line {
-  highlighted?: boolean;
-  content: Token[];
+interface RawToken {
+  content: string;
+  style: number;
 }
+
+interface Line<T> {
+  highlighted?: boolean;
+  content: Array<T>;
+}
+
 interface HighlightJson {
   style: Style;
-  content: Line[];
+  content: Line<Token>[];
 }
 
 enum FontStyleConstants {
@@ -93,21 +99,6 @@ interface FontStyle {
 interface Style extends FontStyle {
   color?: string;
   background?: string;
-}
-
-class Highlight {
-  tokenized: Line[];
-  rootStyles: Style;
-  constructor(tokenized: Line[], rootStyles: Style) {
-    this.tokenized = tokenized;
-    this.rootStyles = rootStyles;
-  }
-  toJSON(): HighlightJson {
-    return {
-      style: this.rootStyles,
-      content: this.tokenized,
-    };
-  }
 }
 
 // credit: https://github.com/andrewbranch/gatsby-remark-vscode/blob/bd95106ff71943c6a6a9d7e263aed27d49ac1b1d/src/tokenizeWithTheme.js#L64-L73
@@ -147,13 +138,7 @@ const unpack = (raw: number, mask: number, offset: number): number => {
   return (raw & mask) >>> offset;
 };
 
-const styles = (
-  packed: Uint32Array,
-  startIndex: number,
-  colors: string[],
-  parentStyles: Style
-): Style => {
-  const raw = findStyle(packed, startIndex);
+const styles = (raw: number, colors: string[], parentStyles: Style): Style => {
   const color = colors[unpack(raw, MC.FOREGROUND_MASK, MC.FOREGROUND_OFFSET)];
   const background =
     colors[unpack(raw, MC.BACKGROUND_MASK, MC.BACKGROUND_OFFSET)];
@@ -169,6 +154,37 @@ const styles = (
     ...unpackFontStyle(unpack(raw, MC.FONT_STYLE_MASK, MC.FONT_STYLE_OFFSET)),
   };
 };
+
+class Highlight {
+  content: HighlightJson;
+  constructor(tokenized: Line<RawToken>[], theme: ThemeData, colors: string[]) {
+    this.content = this.preprocess(tokenized, theme, colors);
+  }
+  // expand styles and combine tokens as possible
+  private preprocess(
+    tokenized: Line<RawToken>[],
+    theme: ThemeData,
+    colors: string[]
+  ): HighlightJson {
+    const themeColors = theme.resultColors;
+    const rootStyles = {
+      background: themeColors["editor.background"],
+      color: themeColors["editor.foreground"],
+    };
+    return {
+      style: rootStyles,
+      content: tokenized.map((line) => ({
+        content: line.content.map((token) => ({
+          content: token.content,
+          style: styles(token.style, colors, rootStyles),
+        })),
+      })),
+    };
+  }
+  toJSON(): HighlightJson {
+    return this.content;
+  }
+}
 
 export class Highlighter {
   private theme = "Dark (Visual Studio)";
@@ -214,22 +230,16 @@ export class Highlighter {
     );
     registry.setTheme(themeData);
     const colors = registry.getColorMap();
-    // extract the colors we care about
-    const themeColors = themeData.resultColors;
-    const rootStyles = {
-      background: themeColors["editor.background"],
-      color: themeColors["editor.foreground"],
-    };
     // find the scope for the language
     const languages = await defaultLanguages;
     const language = languages[lang];
     const grammar = await registry.loadGrammar(language.scope);
     if (grammar === null) {
-      return new Highlight([], { color: "#ffffff", background: "#000000" });
+      return new Highlight([], themeData, []);
     }
     const lines = code.split("\n");
     let rules = INITIAL;
-    const tokenized = [] as Line[];
+    const tokenized = [] as Line<RawToken>[];
     lines.map((line) => {
       const { tokens } = grammar.tokenizeLine(line, rules);
       // response is formated in repeating pairs of a start index followed by style info
@@ -238,13 +248,13 @@ export class Highlighter {
         content: tokens.map(({ startIndex, endIndex }) => {
           return {
             content: line.substring(startIndex, endIndex),
-            style: styles(packed, startIndex, colors, rootStyles),
+            style: findStyle(packed, startIndex),
           };
         }),
       });
       rules = ruleStack;
     });
-    return new Highlight(tokenized, rootStyles);
+    return new Highlight(tokenized, themeData, colors);
   }
 
   private async prepareRegistry(): Promise<Registry> {

@@ -144,7 +144,12 @@ const loadRawTheme = (
   return { resultRules, resultColors };
 };
 
-const load = (path: string): { settings: Rule[]; resultColors: ColorMap } => {
+export interface ThemeData {
+  settings: Rule[];
+  resultColors: ColorMap;
+}
+
+const load = (path: string): ThemeData => {
   const { resultRules: rules, resultColors: colors } = loadRawTheme(path);
   const defaultTokenColors = {
     settings: {
