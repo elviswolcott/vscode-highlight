@@ -156,13 +156,14 @@ const styles = (raw: number, colors: string[], parentStyles: Style): Style => {
 };
 
 // join all the masks used
-const _StyleMask = MC.BACKGROUND_MASK | MC.FOREGROUND_MASK | MC.FONT_STYLE_MASK;
+const VisualStylesMask =
+  MC.BACKGROUND_MASK | MC.FOREGROUND_MASK | MC.FONT_STYLE_MASK;
 
-const styleEqual = (a: number, b: number): boolean => {
+const styleEqual = (a: number, b: number, mask: number): boolean => {
   // a ^ b is the difference between the two
   // applying the mask checks if the difference is visual
   // the result is inverted, because a visual difference means not equal
-  return !((a ^ b) & _StyleMask);
+  return !((a ^ b) & mask);
 };
 
 class Highlight {
@@ -187,9 +188,19 @@ class Highlight {
         // merge tokens
         const [rest, last] = line.content.reduce(
           ([passed, last], current): [RawToken[], RawToken] => {
-            // tokens can be merged
-            if (styleEqual(last.style, current.style)) {
+            // tokens can be merged if they have the same styles or one is whitespace with the same font styles
+            if (styleEqual(last.style, current.style, VisualStylesMask)) {
               // combine content
+              last.content += current.content;
+              return [passed, last];
+            } else if (
+              styleEqual(last.style, current.style, MC.FONT_STYLE_MASK) &&
+              (last.content.trim() === "" || current.content.trim() === "")
+            ) {
+              // use the style of the non-whitespace token
+              if (last.content.trim() === "") {
+                last.style = current.style;
+              }
               last.content += current.content;
               return [passed, last];
             } else {
