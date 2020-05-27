@@ -51,7 +51,6 @@ const defaultLanguages = readJson<Languages>(
     // add the comments from all the embedded languages
     embedded.forEach((languageId) => {
       const language = languages[languageId];
-      console.log(languageId, language);
       language?.comments[0] && comments.push(language.comments[0]);
     });
     if (language.aliases.length > 0) {
@@ -266,14 +265,14 @@ export class Highlighter {
       ): Promise<IRawGrammar | null | undefined> => {
         // look for the grammar in vscode extensions
         const scopes = await defaultScopes;
-        const grammarPath = scopes[scopeName].path;
-        if (grammarPath) {
+        const scope = scopes[scopeName];
+        if (scope) {
           // load the grammar from the file (plist or json)
           const data = await (
-            await readFile(resolvePath(__dirname, STATIC, grammarPath))
+            await readFile(resolvePath(__dirname, STATIC, scope.path))
           ).toString();
           // undefined indicates a parsing error
-          return parseRawGrammar(data, grammarPath);
+          return parseRawGrammar(data, scope.path);
         }
         // return null to indicate the grammar couldn't be loaded
         warn(warning, `unable to find grammar for ${scopeName}.`);
