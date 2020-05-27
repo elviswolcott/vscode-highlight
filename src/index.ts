@@ -155,6 +155,16 @@ const styles = (raw: number, colors: string[], parentStyles: Style): Style => {
   };
 };
 
+// join all the masks used
+const _StyleMask = MC.BACKGROUND_MASK | MC.FOREGROUND_MASK | MC.FONT_STYLE_MASK;
+
+const styleEqual = (a: number, b: number): boolean => {
+  // a ^ b is the difference between the two
+  // applying the mask checks if the difference is visual
+  // the result is inverted, because a visual difference means not equal
+  return !((a ^ b) & _StyleMask);
+};
+
 class Highlight {
   content: HighlightJson;
   constructor(tokenized: Line<RawToken>[], theme: ThemeData, colors: string[]) {
@@ -173,12 +183,33 @@ class Highlight {
     };
     return {
       style: rootStyles,
-      content: tokenized.map((line) => ({
-        content: line.content.map((token) => ({
-          content: token.content,
-          style: styles(token.style, colors, rootStyles),
-        })),
-      })),
+      content: tokenized.map((line) => {
+        // merge tokens
+        const [rest, last] = line.content.reduce(
+          ([passed, last], current): [RawToken[], RawToken] => {
+            // tokens can be merged
+            if (styleEqual(last.style, current.style)) {
+              // combine content
+              last.content += current.content;
+              return [passed, last];
+            } else {
+              passed.push(last);
+              return [passed, current];
+            }
+          },
+          [[], { content: "", style: 0 }] as [RawToken[], RawToken]
+        );
+        return {
+          // remove empty tokens
+          // unpack styles
+          content: [...rest, last]
+            .filter((token) => token.content !== "")
+            .map((token) => ({
+              content: token.content,
+              style: styles(token.style, colors, rootStyles),
+            })),
+        };
+      }),
     };
   }
   toJSON(): HighlightJson {
