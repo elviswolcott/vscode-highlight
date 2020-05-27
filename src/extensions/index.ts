@@ -51,7 +51,7 @@ interface LoadedLanguageContribution {
   aliases: string[];
   extensions: string[];
   filenames: string[];
-  comments: Comments;
+  comments: Comments[];
 }
 
 export interface CompleteLanguageContribution
@@ -68,7 +68,7 @@ const transformLanguageConfiguration = ({
   };
 };
 
-interface Comments {
+export interface Comments {
   blockComment?: string[2];
   lineComment?: string;
 }
@@ -84,8 +84,8 @@ interface GrammarContribution {
   scopeName: string;
   // TextMate grammar (relative path)
   path: string;
-  tokenTypes?: { [type: string]: string };
-  embeddedLanguages?: { [language: string]: string };
+  tokenTypes?: LUT<string>;
+  embeddedLanguages?: LUT<string>;
 }
 
 interface ThemeContribution {
@@ -121,12 +121,28 @@ interface Package {
   themes: ThemeContribution[];
 }
 
-interface LoadedExtension {
-  scopes: { [scope: string]: string };
-  themes: { [scope: string]: string };
-  languages: { [language: string]: LoadedLanguageContribution };
-  languageScopes: { [language: string]: string };
+interface Scope {
+  path: string;
+  embedded: string[];
 }
+
+export type LUT<T> = { [key: string]: T };
+
+export type Scopes = LUT<Scope>;
+export type Themes = LUT<string>;
+export type Languages = LUT<LoadedLanguageContribution>;
+export type LanguageScopes = LUT<string>;
+
+interface LoadedExtension {
+  scopes: Scopes;
+  themes: Themes;
+  languages: Languages;
+  languageScopes: LanguageScopes;
+}
+
+const dedupe = <T>(arr: T[]): T[] => {
+  return arr.filter((item, index) => arr.indexOf(item) === index);
+};
 
 const load = async (
   extension: string,
@@ -156,18 +172,20 @@ const load = async (
         .map(async ({ configuration, ...language }) => ({
           ...language,
           comments: configuration
-            ? await readJson<LanguageConfiguration, Comments>(
-                resolvePath(extension, configuration),
-                transformLanguageConfiguration
-              )
-            : {},
+            ? [
+                await readJson<LanguageConfiguration, Comments>(
+                  resolvePath(extension, configuration),
+                  transformLanguageConfiguration
+                ),
+              ]
+            : [],
         }))
     );
-    // TODO: embedded languages?
+
     const languagesById = languages.reduce((all, current) => {
       all[current.id] = current;
       return all;
-    }, {} as { [id: string]: LoadedLanguageContribution });
+    }, {} as LUT<LoadedLanguageContribution>);
     const grammars = packageJson.grammars;
     await Promise.all(
       grammars.map((grammar) =>
@@ -178,26 +196,27 @@ const load = async (
       )
     );
     const scopesByName = grammars.reduce(
-      (scopes, { scopeName: scope, path }) => {
+      (scopes, { scopeName: scope, path, embeddedLanguages }) => {
         // keep as relative paths for redistrobution
-        scopes[scope] = relative(
-          dataPath,
-          resolvePath(dataPath, "grammars", basename(path))
-        );
+        scopes[scope] = {
+          path: relative(
+            dataPath,
+            resolvePath(dataPath, "grammars", basename(path))
+          ),
+          embedded: embeddedLanguages
+            ? dedupe(Object.values(embeddedLanguages))
+            : [],
+        };
         return scopes;
       },
-      {} as {
-        [name: string]: string;
-      }
+      {} as LUT<Scope>
     );
     const scopesByLanguage = grammars.reduce(
       (scopes, { language, scopeName: scope }) => {
         scopes[language] = scope;
         return scopes;
       },
-      {} as {
-        [language: string]: string;
-      }
+      {} as LUT<string>
     );
     const themes = packageJson.themes;
     await Promise.all(
@@ -222,19 +241,14 @@ const load = async (
         }
       })
     );
-    const themesByName = themes.reduce(
-      (themes, { label: name, path }) => {
-        // keep as relative paths for redistrobution
-        themes[name] = relative(
-          dataPath,
-          resolvePath(dataPath, "themes", basename(path))
-        );
-        return themes;
-      },
-      {} as {
-        [name: string]: string;
-      }
-    );
+    const themesByName = themes.reduce((themes, { label: name, path }) => {
+      // keep as relative paths for redistrobution
+      themes[name] = relative(
+        dataPath,
+        resolvePath(dataPath, "themes", basename(path))
+      );
+      return themes;
+    }, {} as Themes);
     // log info
     info(success, `${packageJson.name} loaded.`);
     info(indent(1), status, count(languages.length, "language"));

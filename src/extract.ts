@@ -2,7 +2,14 @@ import { writeManifest, STATIC } from "./data";
 import { resolve as resolvePath } from "path";
 import { readdir } from "fs";
 import { setLevel, info } from "loglevel";
-import { load, CompleteLanguageContribution } from "./extensions";
+import {
+  load,
+  LUT,
+  Scopes,
+  Themes,
+  CompleteLanguageContribution,
+  LanguageScopes,
+} from "./extensions";
 import { info as status, success } from "log-symbols";
 
 const VSCODE = resolvePath(__dirname, "../vscode");
@@ -35,20 +42,20 @@ const childDirectories = (path: string): Promise<string[]> => {
       ...all,
       ...scopes,
     };
-  }, {} as { [scope: string]: string });
+  }, {} as Scopes);
   const allThemes = extensions.reduce((all, { themes }) => {
     return {
       ...all,
       ...themes,
     };
-  }, {} as { [scope: string]: string });
+  }, {} as Themes);
   // sometimes the scope grammar and language are in different files
   const allLanguageScopes = extensions.reduce((all, { languageScopes }) => {
     return {
       ...all,
       ...languageScopes,
     };
-  }, {} as { [scope: string]: string });
+  }, {} as LanguageScopes);
   // to reduce file size, aliases are expanded during runtime
   const allLanguages = extensions.reduce((all, { languages }) => {
     // join by combining aliases, extensions, and filenames
@@ -76,13 +83,13 @@ const childDirectories = (path: string): Promise<string[]> => {
         }
         return merged;
       },
-      {} as { [language: string]: CompleteLanguageContribution }
+      {} as LUT<CompleteLanguageContribution>
     );
     return {
       ...all,
       ...mergedLanguages,
     };
-  }, {} as { [language: string]: CompleteLanguageContribution });
+  }, {} as LUT<CompleteLanguageContribution>);
   await writeManifest(STATIC, "scopes", allScopes);
   info(success, `found ${Object.keys(allScopes).length} scopes.`);
   await writeManifest(STATIC, "themes", allThemes);

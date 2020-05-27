@@ -12,7 +12,14 @@ import { readJson, RUNTIME, STATIC } from "./data";
 import { warn } from "loglevel";
 import { warning } from "log-symbols";
 import { resolve as resolvePath } from "path";
-import { load, CompleteLanguageContribution } from "./extensions";
+import {
+  load,
+  LUT,
+  Scopes,
+  Themes,
+  CompleteLanguageContribution,
+  Comments,
+} from "./extensions";
 import { load as loadTheme } from "./vscode/themes";
 
 export const readFile = (path: string): Promise<Buffer> => {
@@ -21,17 +28,7 @@ export const readFile = (path: string): Promise<Buffer> => {
   });
 };
 
-interface Scopes {
-  [scope: string]: string;
-}
-
-interface Themes {
-  [scope: string]: string;
-}
-
-interface Languages {
-  [languageId: string]: CompleteLanguageContribution;
-}
+type Languages = LUT<CompleteLanguageContribution>;
 
 // only load once
 const defaultScopes = readJson<Scopes>(
@@ -42,12 +39,21 @@ const defaultThemes = readJson<Themes>(
   resolvePath(__dirname, "../data/themes.json")
 );
 
-// auto expand aliases
+// auto expand aliases and comments
 const defaultLanguages = readJson<Languages>(
   resolvePath(__dirname, "../data/languages.json")
-).then((languages) => {
+).then(async (languages) => {
+  const scopes = await defaultScopes;
   Object.keys(languages).forEach((languageId) => {
+    const comments = [] as Comments[];
     const language = languages[languageId];
+    const embedded = scopes[language.scope]?.embedded || [];
+    // add the comments from all the embedded languages
+    embedded.forEach((languageId) => {
+      const language = languages[languageId];
+      console.log(languageId, language);
+      language?.comments[0] && comments.push(language.comments[0]);
+    });
     if (language.aliases.length > 0) {
       language.aliases.forEach((alias) => {
         languages[alias] = language;
@@ -57,17 +63,15 @@ const defaultLanguages = readJson<Languages>(
   return languages;
 });
 
-// textmate registry for highlighter
-
-// todo: language => scope conversation
-
 interface Token {
   content: string;
   style: Style;
 }
 
-type Line = Token[];
-
+interface Line {
+  highlighted?: boolean;
+  content: Token[];
+}
 interface HighlightJson {
   style: Style;
   content: Line[];
@@ -231,14 +235,14 @@ export class Highlighter {
       const { tokens } = grammar.tokenizeLine(line, rules);
       // response is formated in repeating pairs of a start index followed by style info
       const { tokens: packed, ruleStack } = grammar.tokenizeLine2(line, rules);
-      tokenized.push(
-        tokens.map(({ startIndex, endIndex }) => {
+      tokenized.push({
+        content: tokens.map(({ startIndex, endIndex }) => {
           return {
             content: line.substring(startIndex, endIndex),
             style: styles(packed, startIndex, colors, rootStyles),
           };
-        })
-      );
+        }),
+      });
       rules = ruleStack;
     });
     return new Highlight(tokenized, rootStyles);
@@ -262,7 +266,7 @@ export class Highlighter {
       ): Promise<IRawGrammar | null | undefined> => {
         // look for the grammar in vscode extensions
         const scopes = await defaultScopes;
-        const grammarPath = scopes[scopeName];
+        const grammarPath = scopes[scopeName].path;
         if (grammarPath) {
           // load the grammar from the file (plist or json)
           const data = await (
