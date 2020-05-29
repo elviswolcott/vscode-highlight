@@ -51,7 +51,7 @@ interface LoadedLanguageContribution {
   aliases: string[];
   extensions: string[];
   filenames: string[];
-  comments: Comments[];
+  comments: Comments;
 }
 
 export interface CompleteLanguageContribution
@@ -123,7 +123,7 @@ interface Package {
 
 interface Scope {
   path: string;
-  embedded: string[];
+  embeddedLanguages: LUT<string>;
 }
 
 export type LUT<T> = { [key: string]: T };
@@ -172,13 +172,11 @@ const load = async (
         .map(async ({ configuration, ...language }) => ({
           ...language,
           comments: configuration
-            ? [
-                await readJson<LanguageConfiguration, Comments>(
-                  resolvePath(extension, configuration),
-                  transformLanguageConfiguration
-                ),
-              ]
-            : [],
+            ? await readJson<LanguageConfiguration, Comments>(
+                resolvePath(extension, configuration),
+                transformLanguageConfiguration
+              )
+            : {},
         }))
     );
 
@@ -203,9 +201,7 @@ const load = async (
             dataPath,
             resolvePath(dataPath, "grammars", basename(path))
           ),
-          embedded: embeddedLanguages
-            ? dedupe(Object.values(embeddedLanguages))
-            : [],
+          embeddedLanguages: embeddedLanguages || {},
         };
         return scopes;
       },

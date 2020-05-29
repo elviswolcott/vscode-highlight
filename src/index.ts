@@ -43,16 +43,8 @@ const defaultThemes = readJson<Themes>(
 const defaultLanguages = readJson<Languages>(
   resolvePath(__dirname, "../data/languages.json")
 ).then(async (languages) => {
-  const scopes = await defaultScopes;
   Object.keys(languages).forEach((languageId) => {
-    const comments = [] as Comments[];
     const language = languages[languageId];
-    const embedded = scopes[language.scope]?.embedded || [];
-    // add the comments from all the embedded languages
-    embedded.forEach((languageId) => {
-      const language = languages[languageId];
-      language?.comments[0] && comments.push(language.comments[0]);
-    });
     if (language.aliases.length > 0) {
       language.aliases.forEach((alias) => {
         languages[alias] = language;
@@ -211,6 +203,7 @@ class Highlight {
           [[], { content: "", style: 0 }] as [RawToken[], RawToken]
         );
         return {
+          highlighted: line.highlighted,
           // remove empty tokens
           // unpack styles
           content: [...rest, last]
@@ -227,6 +220,47 @@ class Highlight {
     return this.content;
   }
 }
+
+const highlightDirectives = [
+  "highlight-next-line",
+  "highlight-start",
+  "highlight-end",
+];
+
+const dedupe = <T>(arr: T[]): T[] =>
+  arr.filter((item, index) => arr.indexOf(item) === index);
+
+const escapeRegExp = (string: string): string =>
+  string.replace(/[.*+\-?^${}()|[\]\\]/g, "\\$&");
+
+const orRegExp = (args: string[]): string => args.join("|");
+
+const captureRegExp = (group: string): string => `(${group})`;
+
+const whitespaceRegExp = `\\s*`;
+
+const createDirectiveMatcher = (
+  directives: string[],
+  comments: Comments
+): RegExp => {
+  const directive =
+    whitespaceRegExp +
+    captureRegExp(orRegExp(directives.map(escapeRegExp))) +
+    whitespaceRegExp;
+  const expressions = [];
+  if (comments.blockComment) {
+    expressions.push(
+      escapeRegExp(comments.blockComment[0]) +
+        directive +
+        escapeRegExp(comments.blockComment[1]) +
+        whitespaceRegExp
+    );
+  }
+  if (comments.lineComment) {
+    expressions.push(escapeRegExp(comments.lineComment) + directive);
+  }
+  return new RegExp(whitespaceRegExp + captureRegExp(orRegExp(expressions)));
+};
 
 export class Highlighter {
   private theme = "Dark (Visual Studio)";
@@ -267,6 +301,7 @@ export class Highlighter {
   ): Promise<Highlight> {
     const registry = await this.registry;
     const themes = await defaultThemes;
+    const scopes = await defaultScopes;
     const themeData = loadTheme(
       resolvePath(__dirname, STATIC, themes[theme || this.theme])
     );
@@ -275,26 +310,91 @@ export class Highlighter {
     // find the scope for the language
     const languages = await defaultLanguages;
     const language = languages[lang];
-    const grammar = await registry.loadGrammar(language.scope);
+    const scope = scopes[language.scope];
+    const indexToLanguageId = [
+      "do-not-use",
+      language.id,
+      ...dedupe(Object.values(scope.embeddedLanguages)),
+    ];
+    const languageIdToIndex = indexToLanguageId.reduce((map, id, index) => {
+      map[id] = index;
+      return map;
+    }, {} as LUT<number>);
+    const scopeNameToIndex = Object.keys(scope.embeddedLanguages).reduce(
+      (map, name) => {
+        map[name] = languageIdToIndex[scope.embeddedLanguages[name]];
+        return map;
+      },
+      {} as LUT<number>
+    );
+    scopeNameToIndex[language.scope] = 1;
+    const embeddedLanguages = Object.keys(scope.embeddedLanguages).reduce(
+      (all, key) => {
+        all[key] = scopeNameToIndex[key];
+        return all;
+      },
+      {} as LUT<number>
+    );
+    const grammar = await registry.loadGrammarWithConfiguration(
+      language.scope,
+      1,
+      {
+        embeddedLanguages,
+      }
+    );
     if (grammar === null) {
       return new Highlight([], themeData, []);
     }
     const lines = code.split("\n");
     let rules = INITIAL;
     const tokenized = [] as Line<RawToken>[];
-    lines.map((line) => {
+    const state = { highlightSingle: false, highlighting: false };
+    lines.forEach((line) => {
+      // the rule stack can't be read from directly, so pass an empty line to get the language
+      const { tokens: peekLanguage } = grammar.tokenizeLine2("", rules);
+      const comments =
+        languages[
+          indexToLanguageId[
+            unpack(peekLanguage[1], MC.LANGUAGEID_MASK, MC.LANGUAGEID_OFFSET)
+          ]
+        ].comments;
+      const directiveMatcher = createDirectiveMatcher(
+        highlightDirectives,
+        comments
+      );
+      const match = directiveMatcher.exec(line);
+      if (match) {
+        const directive = match[2] || match[3];
+        switch (directive) {
+          case "highlight-next-line":
+            state.highlightSingle = true;
+            break;
+
+          case "highlight-start":
+            state.highlighting = true;
+            break;
+
+          case "highlight-end":
+            state.highlighting = false;
+            break;
+
+          default:
+            break;
+        }
+        return; // line won't be tokenized (as if it wasn't in the source)
+      }
       const { tokens } = grammar.tokenizeLine(line, rules);
       // response is formated in repeating pairs of a start index followed by style info
       const { tokens: packed, ruleStack } = grammar.tokenizeLine2(line, rules);
       tokenized.push({
-        content: tokens.map(({ startIndex, endIndex }) => {
-          return {
-            content: line.substring(startIndex, endIndex),
-            style: findStyle(packed, startIndex),
-          };
-        }),
+        highlighted: state.highlightSingle || state.highlighting,
+        content: tokens.map(({ startIndex, endIndex }) => ({
+          content: line.substring(startIndex, endIndex),
+          style: findStyle(packed, startIndex),
+        })),
       });
       rules = ruleStack;
+      state.highlightSingle = false;
     });
     return new Highlight(tokenized, themeData, colors);
   }
