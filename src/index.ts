@@ -171,6 +171,14 @@ const styleToCSS = (style: Style): string => {
     .join("");
 };
 
+const escapeHTML = (raw: string): string =>
+  raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
 class Highlight {
   content: HighlightJson;
   constructor(tokenized: Line<RawToken>[], theme: ThemeData, colors: string[]) {
@@ -238,16 +246,16 @@ class Highlight {
     return `<pre style="${styleToCSS(style)}"><code>${lines
       .map(
         (line) =>
-          `<div${
-            line.highlighted ? ` class="highlighted"` : ""
-          }>${line.content
-            .map(
-              (token) =>
-                `<span style="${styleToCSS(token.style)}">${
-                  token.content
-                }</span>`
-            )
-            .join("")}</div>`
+          `<div${line.highlighted ? ` class="highlighted"` : ""}>${
+            line.content
+              .map(
+                (token) =>
+                  `<span style="${styleToCSS(token.style)}">${escapeHTML(
+                    token.content
+                  )}</span>`
+              )
+              .join("") || " "
+          }</div>`
       )
       .join("")}</pre></code>`;
   }
