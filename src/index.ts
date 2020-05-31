@@ -158,6 +158,19 @@ const styleEqual = (a: number, b: number, mask: number): boolean => {
   return !((a ^ b) & mask);
 };
 
+const styleToCSS = (style: Style): string => {
+  const CSSProperties = {
+    color: (value) => `color: ${value};`,
+    background: (value): string => `background: ${value};`,
+    underline: (_value) => `text-decoration: underline;`,
+    bold: (_value) => `font-weight: bold;`,
+    italic: (_value) => `font-style: italic;`,
+  } as { [key: string]: (v: string | true) => string };
+  return (Object.keys(style) as (keyof Style)[])
+    .map((prop) => CSSProperties[prop](style[prop] || ""))
+    .join("");
+};
+
 class Highlight {
   content: HighlightJson;
   constructor(tokenized: Line<RawToken>[], theme: ThemeData, colors: string[]) {
@@ -218,6 +231,25 @@ class Highlight {
   }
   toJSON(): HighlightJson {
     return this.content;
+  }
+  toHTML(): string {
+    const style = this.content.style;
+    const lines = this.content.content;
+    return `<pre style="${styleToCSS(style)}"><code>${lines
+      .map(
+        (line) =>
+          `<div${
+            line.highlighted ? ` class="highlighted"` : ""
+          }>${line.content
+            .map(
+              (token) =>
+                `<span style="${styleToCSS(token.style)}">${
+                  token.content
+                }</span>`
+            )
+            .join("")}</div>`
+      )
+      .join("")}</pre></code>`;
   }
 }
 
