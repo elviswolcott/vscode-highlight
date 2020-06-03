@@ -2,15 +2,17 @@ import { writeManifest, STATIC } from "./data";
 import { resolve as resolvePath } from "path";
 import { readdir } from "fs";
 import { setLevel, info } from "loglevel";
+import { load } from "./extensions";
+import { register as registerTheme } from "./extensions/themes";
 import {
-  load,
-  LUT,
-  Scopes,
-  Themes,
-  CompleteLanguageContribution,
-  LanguageScopes,
-} from "./extensions";
+  register as registerLanguage,
+  registerIndex,
+} from "./extensions/languages";
 import { info as status, success } from "log-symbols";
+import {
+  register as registerGrammar,
+  registerInitialScopes,
+} from "./extensions/grammars";
 
 const VSCODE = resolvePath(__dirname, "../vscode");
 const BUILTIN_EXTENSIONS = resolvePath(VSCODE, "extensions");
@@ -36,65 +38,37 @@ const childDirectories = (path: string): Promise<string[]> => {
   const extensions = await Promise.all(
     extensionsList.map((extension) => load(extension, STATIC))
   );
-  // TODO: consider moving merge funcitions into ./extensions
-  const allScopes = extensions.reduce((all, { scopes }) => {
-    return {
-      ...all,
-      ...scopes,
-    };
-  }, {} as Scopes);
-  const allThemes = extensions.reduce((all, { themes }) => {
-    return {
-      ...all,
-      ...themes,
-    };
-  }, {} as Themes);
-  // sometimes the scope grammar and language are in different files
-  const allLanguageScopes = extensions.reduce((all, { languageScopes }) => {
-    return {
-      ...all,
-      ...languageScopes,
-    };
-  }, {} as LanguageScopes);
-  // to reduce file size, aliases are expanded during runtime
-  const allLanguages = extensions.reduce((all, { languages }) => {
-    // join by combining aliases, extensions, and filenames
-    // prefer name !== id
-    // add in scope
-    const mergedLanguages = Object.keys(languages).reduce(
-      (merged, languageId) => {
-        const language = {
-          scope: allLanguageScopes[languageId],
-          ...languages[languageId],
-        };
-        const existing = all[languageId];
-        if (existing) {
-          merged[languageId] = {
-            id: languageId,
-            scope: language.scope,
-            name: existing.name === languageId ? language.name : existing.name,
-            aliases: [...existing.aliases, ...language.aliases],
-            extensions: [...existing.extensions, ...language.extensions],
-            filenames: [...existing.filenames, ...language.filenames],
-            comments: { ...existing.comments, ...language.comments },
-          };
-        } else {
-          merged[languageId] = language;
-        }
-        return merged;
-      },
-      {} as LUT<CompleteLanguageContribution>
-    );
-    return {
-      ...all,
-      ...mergedLanguages,
-    };
-  }, {} as LUT<CompleteLanguageContribution>);
-  await writeManifest(STATIC, "scopes", allScopes);
-  info(success, `found ${Object.keys(allScopes).length} scopes.`);
-  await writeManifest(STATIC, "themes", allThemes);
-  info(success, `found ${Object.keys(allThemes).length} themes.`);
-  await writeManifest(STATIC, "languages", allLanguages);
-  info(success, `found ${Object.keys(allLanguages).length} languages.`);
+  // combine all the extension data into a single extension
+  const joined = extensions.reduce(
+    (joined, extension) => {
+      joined.grammars = joined.grammars.concat(extension.grammars);
+      joined.themes = joined.themes.concat(extension.themes);
+      joined.languages = joined.languages.concat(extension.languages);
+      return joined;
+    },
+    { name: "built-in", themes: [], languages: [], grammars: [] }
+  );
+  // get all themes and register them
+  const themes = joined.themes.reduce(registerTheme, {});
+  // save the result to disk
+  await writeManifest(STATIC, "themes", themes);
+  info(success, `found ${joined.themes.length} themes.`);
+  // get all languages and register them
+  const languages = joined.languages.reduce(registerLanguage(1), {});
+  const languagesByIndex = Object.values(languages).reduce(registerIndex, {});
+  // save the result to disk
+  await writeManifest(STATIC, "languages", languages);
+  await writeManifest(STATIC, "languagesByIndex", languagesByIndex);
+  info(success, `found ${joined.languages.length} languages.`);
+  // get all the grammars and register
+  const grammars = joined.grammars.reduce(registerGrammar, {});
+  const scopesByIndex = Object.values(grammars).reduce(
+    registerInitialScopes(languages),
+    {}
+  );
+  // save to disk
+  await writeManifest(STATIC, "grammars", grammars);
+  await writeManifest(STATIC, "scopesByIndex", scopesByIndex);
+  info(success, `found ${joined.grammars.length} grammars.`);
   info(status, "done.");
 })();

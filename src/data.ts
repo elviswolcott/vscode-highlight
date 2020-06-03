@@ -4,7 +4,7 @@ import {
   mkdir,
   writeFile as fsWriteFile,
 } from "fs";
-import { resolve as resolvePath, basename } from "path";
+import { resolve as resolvePath, basename, relative } from "path";
 import { parse as json5 } from "json5";
 
 export const STATIC = resolvePath(__dirname, "../data");
@@ -15,6 +15,8 @@ export const manifest = (dataPath: string, name: string): string =>
 
 export const dataBlock = (dataPath: string, blockName: string): string =>
   resolvePath(dataPath, blockName);
+
+export const portable = (path: string): string => relative(__dirname, path);
 
 export const readJson = async <R, T = R>(
   path: string,
@@ -39,12 +41,13 @@ export const mkdirp = async (dir: string): Promise<void> => {
 export const copyEntry = async (
   src: string,
   dataBlock: string
-): Promise<void> => {
+): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     try {
       await mkdirp(dataBlock);
-      copyFile(src, resolvePath(dataBlock, basename(src)), (error) => {
-        error ? reject(error) : resolve();
+      const path = resolvePath(dataBlock, basename(src));
+      copyFile(src, path, (error) => {
+        error ? reject(error) : resolve(path);
       });
     } catch (e) {
       reject(e);
