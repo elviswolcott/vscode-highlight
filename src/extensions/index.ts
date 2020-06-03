@@ -1,7 +1,6 @@
 import { info, warn } from "loglevel";
 import { yellow } from "chalk";
 import { success, error, info as status } from "log-symbols";
-import { LUT } from "../utils";
 import { Language, load as loadLanguage } from "./languages";
 import { Grammar, load as loadGrammar } from "./grammars";
 import { Theme, load as loadTheme } from "./themes";
@@ -9,20 +8,6 @@ import { load as loadPackage } from "./package";
 const indent = (n: number): string => "  ".repeat(n);
 const count = (n: number, name: string): string =>
   `${n} ${name}${n !== 1 ? "s" : ""}.`;
-
-export interface CompleteLanguageContribution extends Language {
-  scope: string;
-}
-
-interface Scope {
-  path: string;
-  embeddedLanguages: LUT<string>;
-}
-
-export type Scopes = LUT<Scope>;
-export type Themes = LUT<string>;
-export type Languages = LUT<Language>;
-export type LanguageScopes = LUT<string>;
 
 interface Extension {
   name: string;

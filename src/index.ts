@@ -12,15 +12,17 @@ import { readJson, RUNTIME, STATIC } from "./data";
 import { warn } from "loglevel";
 import { warning } from "log-symbols";
 import { resolve as resolvePath } from "path";
-import {
-  load,
-  LUT,
-  Scopes,
-  Themes,
-  CompleteLanguageContribution,
-  Comments,
-} from "./extensions";
+import { load } from "./extensions";
 import { load as loadTheme, ThemeData } from "./vscode/themes";
+import { LUT } from "./utils";
+import {
+  Languages,
+  LanguagesByIndex,
+  Grammars,
+  ScopesByIndex,
+  Themes,
+} from "./extract";
+import { Comments } from "./extensions/languages";
 
 export const readFile = (path: string): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
@@ -28,31 +30,24 @@ export const readFile = (path: string): Promise<Buffer> => {
   });
 };
 
-type Languages = LUT<CompleteLanguageContribution>;
-
-// only load once
-const defaultScopes = readJson<Scopes>(
-  resolvePath(__dirname, "../data/scopes.json")
-);
-
-const defaultThemes = readJson<Themes>(
-  resolvePath(__dirname, "../data/themes.json")
-);
-
-// auto expand aliases and comments
+// load extracted data
 const defaultLanguages = readJson<Languages>(
-  resolvePath(__dirname, "../data/languages.json")
-).then(async (languages) => {
-  Object.keys(languages).forEach((languageId) => {
-    const language = languages[languageId];
-    if (language.aliases.length > 0) {
-      language.aliases.forEach((alias) => {
-        languages[alias] = language;
-      });
-    }
-  });
-  return languages;
-});
+  resolvePath(STATIC, "languages.json")
+);
+
+const defaultLanguagesByIndex = readJson<LanguagesByIndex>(
+  resolvePath(STATIC, "languagesByindex.json")
+);
+
+const defaultGrammars = readJson<Grammars>(
+  resolvePath(STATIC, "grammars.json")
+);
+
+const defaultScopesByIndex = readJson<ScopesByIndex>(
+  resolvePath(STATIC, "scopesByIndex.json")
+);
+
+const defaultThemes = readJson<Themes>(resolvePath(STATIC, "themes.json"));
 
 interface Token {
   content: string;
@@ -162,9 +157,12 @@ const styleToCSS = (style: Style): string => {
   const CSSProperties = {
     color: (value) => `color: ${value};`,
     background: (value): string => `background: ${value};`,
-    underline: (_value) => `text-decoration: underline;`,
-    bold: (_value) => `font-weight: bold;`,
-    italic: (_value) => `font-style: italic;`,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    underline: (value) => `text-decoration: underline;`,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    bold: (value) => `font-weight: bold;`,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    italic: (value) => `font-style: italic;`,
   } as { [key: string]: (v: string | true) => string };
   return (Object.keys(style) as (keyof Style)[])
     .map((prop) => CSSProperties[prop](style[prop] || ""))
@@ -327,9 +325,11 @@ export class Highlighter {
     this.loaded.concat(this.extensions.map((path) => load(path, RUNTIME)));
 
     // start loading defaults
-    this.loaded.push(defaultScopes);
-    this.loaded.push(defaultThemes);
     this.loaded.push(defaultLanguages);
+    this.loaded.push(defaultLanguagesByIndex);
+    this.loaded.push(defaultGrammars);
+    this.loaded.push(defaultScopesByIndex);
+    this.loaded.push(defaultThemes);
 
     this.registry = this.prepareRegistry();
   }
@@ -337,53 +337,48 @@ export class Highlighter {
   async highlight(
     code: string,
     lang: string,
-    theme?: string
+    themeName?: string
   ): Promise<Highlight> {
     const registry = await this.registry;
     const themes = await defaultThemes;
-    const scopes = await defaultScopes;
-    const themeData = loadTheme(
-      resolvePath(__dirname, STATIC, themes[theme || this.theme])
-    );
+    const scopes = await defaultScopesByIndex;
+    const grammars = await defaultGrammars;
+    const languages = await defaultLanguages;
+    const languagesByIndex = await defaultLanguagesByIndex;
+    // get specific data
+    const theme = themes[themeName || this.theme];
+    // TODO: impliment better language matching
+    const language = languages[lang];
+    const scope = scopes[language.index];
+    const grammar = grammars[scope];
+    // process the theme
+    const themeData = loadTheme(resolvePath(STATIC, theme.path));
     registry.setTheme(themeData);
     const colors = registry.getColorMap();
-    // find the scope for the language
-    const languages = await defaultLanguages;
-    const language = languages[lang];
-    const scope = scopes[language.scope];
-    const indexToLanguageId = [
-      "do-not-use",
-      language.id,
-      ...dedupe(Object.values(scope.embeddedLanguages)),
-    ];
-    const languageIdToIndex = indexToLanguageId.reduce((map, id, index) => {
-      map[id] = index;
-      return map;
-    }, {} as LUT<number>);
-    const scopeNameToIndex = Object.keys(scope.embeddedLanguages).reduce(
-      (map, name) => {
-        map[name] = languageIdToIndex[scope.embeddedLanguages[name]];
-        return map;
-      },
-      {} as LUT<number>
-    );
-    scopeNameToIndex[language.scope] = 1;
-    const embeddedLanguages = Object.keys(scope.embeddedLanguages).reduce(
-      (all, key) => {
-        all[key] = scopeNameToIndex[key];
-        return all;
-      },
-      {} as LUT<number>
-    );
-    const grammar = await registry.loadGrammarWithConfiguration(
-      language.scope,
+    // map embedded languages to language indices
+    const embeddedLanguages = Object.values(
+      grammar.embeddedLanguages || {}
+    ).reduce((all: LUT<number>, key: string) => {
+      all[key] = languages[key] ? languages[key].index : 1;
+      return all;
+    }, {});
+    // load the grammar from the registry
+    const tokenizer = await registry.loadGrammarWithConfiguration(
+      scopes[language.index],
       1,
       {
         embeddedLanguages,
       }
     );
-    if (grammar === null) {
-      return new Highlight([], themeData, []);
+    // if it can't be parsed, the text can't be highlighted
+    if (tokenizer === null) {
+      return new Highlight(
+        code
+          .split("\n")
+          .map((line) => ({ content: [{ content: line, style: 0 }] })),
+        themeData,
+        []
+      );
     }
     const lines = code.split("\n");
     let rules = INITIAL;
@@ -391,10 +386,10 @@ export class Highlighter {
     const state = { highlightSingle: false, highlighting: false };
     lines.forEach((line) => {
       // the rule stack can't be read from directly, so pass an empty line to get the language
-      const { tokens: peekLanguage } = grammar.tokenizeLine2("", rules);
+      const { tokens: peekLanguage } = tokenizer.tokenizeLine2("", rules);
       const comments =
         languages[
-          indexToLanguageId[
+          languagesByIndex[
             unpack(peekLanguage[1], MC.LANGUAGEID_MASK, MC.LANGUAGEID_OFFSET)
           ]
         ].comments;
@@ -423,9 +418,12 @@ export class Highlighter {
         }
         return; // line won't be tokenized (as if it wasn't in the source)
       }
-      const { tokens } = grammar.tokenizeLine(line, rules);
+      const { tokens } = tokenizer.tokenizeLine(line, rules);
       // response is formated in repeating pairs of a start index followed by style info
-      const { tokens: packed, ruleStack } = grammar.tokenizeLine2(line, rules);
+      const { tokens: packed, ruleStack } = tokenizer.tokenizeLine2(
+        line,
+        rules
+      );
       tokenized.push({
         highlighted: state.highlightSingle || state.highlighting,
         content: tokens.map(({ startIndex, endIndex }) => ({
@@ -456,8 +454,8 @@ export class Highlighter {
         scopeName
       ): Promise<IRawGrammar | null | undefined> => {
         // look for the grammar in vscode extensions
-        const scopes = await defaultScopes;
-        const scope = scopes[scopeName];
+        const grammars = await defaultGrammars;
+        const scope = grammars[scopeName];
         if (scope) {
           // load the grammar from the file (plist or json)
           const data = await (
