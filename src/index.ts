@@ -356,12 +356,16 @@ export class Highlighter {
     registry.setTheme(themeData);
     const colors = registry.getColorMap();
     // map embedded languages to language indices
-    const embeddedLanguages = Object.values(
-      grammar.embeddedLanguages || {}
-    ).reduce((all: LUT<number>, key: string) => {
-      all[key] = languages[key] ? languages[key].index : 1;
-      return all;
-    }, {});
+    const baseEmbeddedLanguages = grammar.embeddedLanguages || {};
+    const embeddedLanguages = Object.keys(baseEmbeddedLanguages).reduce(
+      (all: LUT<number>, scopeName: string) => {
+        const languageId = baseEmbeddedLanguages[scopeName];
+        const language = languages[languageId];
+        all[scopeName] = language ? language.index : 1;
+        return all;
+      },
+      {}
+    );
     // load the grammar from the registry
     const tokenizer = await registry.loadGrammarWithConfiguration(
       scopes[language.index],
