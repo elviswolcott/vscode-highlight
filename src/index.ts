@@ -369,7 +369,7 @@ export class Highlighter {
     // load the grammar from the registry
     const tokenizer = await registry.loadGrammarWithConfiguration(
       scopes[language.index],
-      1,
+      language.index,
       {
         embeddedLanguages,
       }
