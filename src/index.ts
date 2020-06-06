@@ -24,6 +24,7 @@ import {
 } from "./extract";
 import { TokenizerState, Line, RawToken } from "./lineTokenizers";
 import { tokenizeLine as directives } from "./lineTokenizers/directives";
+import { tokenizeLine as highlight } from "./lineTokenizers/highlight";
 
 export const readFile = (path: string): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
@@ -78,19 +79,6 @@ interface Style extends FontStyle {
   color?: string;
   background?: string;
 }
-
-// credit: https://github.com/andrewbranch/gatsby-remark-vscode/blob/bd95106ff71943c6a6a9d7e263aed27d49ac1b1d/src/tokenizeWithTheme.js#L64-L73
-const findStyle = (packed: Uint32Array, startIndex: number): number => {
-  let i;
-  for (i = 0; i < packed.length; i += 2) {
-    const start = packed[i];
-    const end = packed[i + 2];
-    if (start <= startIndex && startIndex < end) {
-      return packed[i + 1];
-    }
-  }
-  return packed[i - 1];
-};
 
 const unpackFontStyle = (fontStyle: number): FontStyle => {
   if (
@@ -355,21 +343,7 @@ export class Highlighter {
       if (directives(line, state, textmate, data) === null) {
         return;
       }
-      const { tokens } = textmate.tokenizeLine(line, state.rules);
-      // response is formated in repeating pairs of a start index followed by style info
-      const { tokens: packed, ruleStack } = textmate.tokenizeLine2(
-        line,
-        state.rules
-      );
-      tokenized.push({
-        highlighted: state.next.highlight || state.persisted.highlight,
-        content: tokens.map(({ startIndex, endIndex }) => ({
-          content: line.substring(startIndex, endIndex),
-          style: findStyle(packed, startIndex),
-        })),
-      });
-      state.rules = ruleStack;
-      state.next.highlight = false;
+      tokenized.push(highlight(line, state, textmate, data));
     });
     return new Highlight(tokenized, themeData, colors);
   }
