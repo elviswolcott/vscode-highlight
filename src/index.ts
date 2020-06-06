@@ -22,7 +22,8 @@ import {
   ScopesByIndex,
   Themes,
 } from "./extract";
-import { Comments } from "./extensions/languages";
+import { TokenizerState, Line, RawToken } from "./lineTokenizers";
+import { tokenizeLine as directives } from "./lineTokenizers/directives";
 
 export const readFile = (path: string): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
@@ -52,16 +53,6 @@ const defaultThemes = readJson<Themes>(resolvePath(STATIC, "themes.json"));
 interface Token {
   content: string;
   style: Style;
-}
-
-interface RawToken {
-  content: string;
-  style: number;
-}
-
-interface Line<T> {
-  highlighted?: boolean;
-  content: Array<T>;
 }
 
 interface HighlightJson {
@@ -259,47 +250,6 @@ class Highlight {
   }
 }
 
-const highlightDirectives = [
-  "highlight-next-line",
-  "highlight-start",
-  "highlight-end",
-];
-
-const dedupe = <T>(arr: T[]): T[] =>
-  arr.filter((item, index) => arr.indexOf(item) === index);
-
-const escapeRegExp = (string: string): string =>
-  string.replace(/[.*+\-?^${}()|[\]\\]/g, "\\$&");
-
-const orRegExp = (args: string[]): string => args.join("|");
-
-const captureRegExp = (group: string): string => `(${group})`;
-
-const whitespaceRegExp = `\\s*`;
-
-const createDirectiveMatcher = (
-  directives: string[],
-  comments: Comments
-): RegExp => {
-  const directive =
-    whitespaceRegExp +
-    captureRegExp(orRegExp(directives.map(escapeRegExp))) +
-    whitespaceRegExp;
-  const expressions = [];
-  if (comments.blockComment) {
-    expressions.push(
-      escapeRegExp(comments.blockComment[0]) +
-        directive +
-        escapeRegExp(comments.blockComment[1]) +
-        whitespaceRegExp
-    );
-  }
-  if (comments.lineComment) {
-    expressions.push(escapeRegExp(comments.lineComment) + directive);
-  }
-  return new RegExp(whitespaceRegExp + captureRegExp(orRegExp(expressions)));
-};
-
 export class Highlighter {
   private theme = "Dark (Visual Studio)";
   private extensions: string[];
@@ -345,6 +295,13 @@ export class Highlighter {
     const grammars = await defaultGrammars;
     const languages = await defaultLanguages;
     const languagesByIndex = await defaultLanguagesByIndex;
+    const data = {
+      themes,
+      scopes,
+      grammars,
+      languages,
+      languagesByIndex,
+    };
     // get specific data
     const theme = themes[themeName || this.theme];
     // TODO: impliment better language matching
@@ -367,7 +324,7 @@ export class Highlighter {
       {}
     );
     // load the grammar from the registry
-    const tokenizer = await registry.loadGrammarWithConfiguration(
+    const textmate = await registry.loadGrammarWithConfiguration(
       scopes[language.index],
       language.index,
       {
@@ -375,7 +332,7 @@ export class Highlighter {
       }
     );
     // if it can't be parsed, the text can't be highlighted
-    if (tokenizer === null) {
+    if (textmate === null) {
       return new Highlight(
         code
           .split("\n")
@@ -384,59 +341,35 @@ export class Highlighter {
         []
       );
     }
+    // split text by line
     const lines = code.split("\n");
-    let rules = INITIAL;
+    // setup initial state
+    const state: TokenizerState = {
+      rules: INITIAL,
+      next: { highlight: false },
+      persisted: { highlight: false },
+    };
     const tokenized = [] as Line<RawToken>[];
-    const state = { highlightSingle: false, highlighting: false };
     lines.forEach((line) => {
-      // the rule stack can't be read from directly, so pass an empty line to get the language
-      const { tokens: peekLanguage } = tokenizer.tokenizeLine2("", rules);
-      const comments =
-        languages[
-          languagesByIndex[
-            unpack(peekLanguage[1], MC.LANGUAGEID_MASK, MC.LANGUAGEID_OFFSET)
-          ]
-        ].comments;
-      const directiveMatcher = createDirectiveMatcher(
-        highlightDirectives,
-        comments
-      );
-      const match = directiveMatcher.exec(line);
-      if (match) {
-        const directive = match[2] || match[3];
-        switch (directive) {
-          case "highlight-next-line":
-            state.highlightSingle = true;
-            break;
-
-          case "highlight-start":
-            state.highlighting = true;
-            break;
-
-          case "highlight-end":
-            state.highlighting = false;
-            break;
-
-          default:
-            break;
-        }
-        return; // line won't be tokenized (as if it wasn't in the source)
+      // check for directives
+      if (directives(line, state, textmate, data) === null) {
+        return;
       }
-      const { tokens } = tokenizer.tokenizeLine(line, rules);
+      const { tokens } = textmate.tokenizeLine(line, state.rules);
       // response is formated in repeating pairs of a start index followed by style info
-      const { tokens: packed, ruleStack } = tokenizer.tokenizeLine2(
+      const { tokens: packed, ruleStack } = textmate.tokenizeLine2(
         line,
-        rules
+        state.rules
       );
       tokenized.push({
-        highlighted: state.highlightSingle || state.highlighting,
+        highlighted: state.next.highlight || state.persisted.highlight,
         content: tokens.map(({ startIndex, endIndex }) => ({
           content: line.substring(startIndex, endIndex),
           style: findStyle(packed, startIndex),
         })),
       });
-      rules = ruleStack;
-      state.highlightSingle = false;
+      state.rules = ruleStack;
+      state.next.highlight = false;
     });
     return new Highlight(tokenized, themeData, colors);
   }
