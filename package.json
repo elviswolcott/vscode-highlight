@@ -57,7 +57,7 @@
     "log-symbols": "^4.0.0",
     "loglevel": "^1.6.8",
     "oniguruma": "^7.2.1",
-    "plist": "^3.0.1",
+    "plist": "^3.0.6",
     "vscode-textmate": "^5.1.1"
   }
 }
